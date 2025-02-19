@@ -1,0 +1,13 @@
+services:
+  # PostgreSQL для сервиса пациентов
+  postgres_db:
+    image: postgres:15
+    container_name: patient_db_postgres_container
+    environment:
+      POSTGRES_DB: patient_db
+      POSTGRES_USER: medadmin
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./.postgres_data:/var/lib/postgresql/data

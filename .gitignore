@@ -37,3 +37,6 @@ out
 *.ipr
 *.idea
 
+# docker volumes
+.postgres_data
+
