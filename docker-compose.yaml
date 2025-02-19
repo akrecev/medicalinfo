@@ -4,9 +4,9 @@ services:
     image: postgres:15
     container_name: patient_db_postgres_container
     environment:
-      POSTGRES_DB: patient_db
-      POSTGRES_USER: medadmin
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5434:5432"
     volumes:

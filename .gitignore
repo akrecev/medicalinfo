@@ -40,3 +40,5 @@ out
 # docker volumes
 .postgres_data
 
+# enviroments
+.env
