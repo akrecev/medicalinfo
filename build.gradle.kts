@@ -39,6 +39,7 @@ allprojects {
     val springDocOpenapiUi: String by project
     val mapstruct: String by project
     val lombokMapstructBinding: String by project
+    val hapiFhir: String by project
 
     apply(plugin = "io.spring.dependency-management")
     dependencyManagement {
@@ -56,6 +57,9 @@ allprojects {
             dependency("org.mapstruct:mapstruct:$mapstruct")
             dependency("org.mapstruct:mapstruct-processor:$mapstruct")
             dependency("org.projectlombok:lombok-mapstruct-binding:$lombokMapstructBinding")
+            dependency("ca.uhn.hapi.fhir:hapi-fhir-base:$hapiFhir")
+            dependency("ca.uhn.hapi.fhir:hapi-fhir-structures-r4:$hapiFhir")
+            dependency("ca.uhn.hapi.fhir:hapi-fhir-client:$hapiFhir")
         }
     }
 
@@ -73,6 +77,9 @@ allprojects {
             force("org.apache.commons:commons-compress:1.26.1")
             force("com.google.errorprone:error_prone_annotations:2.36.0")
             force("org.jetbrains:annotations:19.0.0")
+            force("org.checkerframework:checker-qual:3.43.0")
+            force("org.scala-lang:scala-reflect:2.13.5")
+            force("org.scala-lang:scala-library:2.13.5")
         }
     }
 }

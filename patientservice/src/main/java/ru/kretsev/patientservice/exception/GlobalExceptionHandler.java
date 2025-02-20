@@ -1,4 +1,4 @@
-package ru.kretsev.exception;
+package ru.kretsev.patientservice.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

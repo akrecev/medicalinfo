@@ -1,4 +1,4 @@
-package ru.kretsev.exception;
+package ru.kretsev.patientservice.exception;
 
 import lombok.experimental.StandardException;
 

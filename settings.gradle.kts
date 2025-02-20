@@ -1,5 +1,6 @@
 rootProject.name = "medicalinfo"
 include("patientservice")
+include("fhirservice")
 
 pluginManagement {
     val jgitver: String by settings
