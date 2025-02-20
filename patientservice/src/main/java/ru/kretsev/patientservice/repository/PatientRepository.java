@@ -5,5 +5,4 @@ import org.springframework.stereotype.Repository;
 import ru.kretsev.patientservice.model.Patient;
 
 @Repository
-public interface PatientRepository extends JpaRepository<Patient, Long> {
-}
+public interface PatientRepository extends JpaRepository<Patient, Long> {}
