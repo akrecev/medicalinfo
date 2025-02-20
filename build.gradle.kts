@@ -37,6 +37,8 @@ allprojects {
     val jmh: String by project
     val asm: String by project
     val springDocOpenapiUi: String by project
+    val mapstruct: String by project
+    val lombokMapstructBinding: String by project
 
     apply(plugin = "io.spring.dependency-management")
     dependencyManagement {
@@ -51,6 +53,9 @@ allprojects {
             dependency("org.openjdk.jmh:jmh-generator-annprocess:$jmh")
             dependency("org.ow2.asm:asm-commons:$asm")
             dependency("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springDocOpenapiUi")
+            dependency("org.mapstruct:mapstruct:$mapstruct")
+            dependency("org.mapstruct:mapstruct-processor:$mapstruct")
+            dependency("org.projectlombok:lombok-mapstruct-binding:$lombokMapstructBinding")
         }
     }
 
