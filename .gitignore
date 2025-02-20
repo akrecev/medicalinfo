@@ -39,6 +39,7 @@ out
 
 # docker volumes
 .postgres_data
+.kafka_data
 
 # enviroments
 .env
