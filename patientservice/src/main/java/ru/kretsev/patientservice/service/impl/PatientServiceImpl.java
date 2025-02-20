@@ -4,12 +4,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import ru.kretsev.exception.DataNotFoundException;
+import ru.kretsev.exception.DuplicateEmailException;
 import ru.kretsev.patientservice.dto.PatientDTO;
 import ru.kretsev.patientservice.dto.PatientResponseDTO;
 import ru.kretsev.patientservice.mapper.PatientMapper;
@@ -43,8 +45,11 @@ public class PatientServiceImpl implements PatientService {
             sendMessage(PATIENT_TOPIC_NAME, patientJson);
 
             return patientMapper.toResponseDTO(savedPatient);
+        } catch (DataIntegrityViolationException e) {
+            throw new DuplicateEmailException("Email already exists: " + patientDTO.email());
         } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
+            log.error("Error sending patient data to Kafka: {}", e.getMessage());
+            throw new RuntimeException("Failed to send patient data to Kafka", e);
         }
     }
 
