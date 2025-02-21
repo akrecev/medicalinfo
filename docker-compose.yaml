@@ -2,7 +2,7 @@ services:
   # PostgreSQL для сервиса пациентов
   postgres_db:
     image: postgres:15
-    container_name: patient_db_postgres_container
+    container_name: patient_db
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
