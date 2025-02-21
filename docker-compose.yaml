@@ -12,10 +12,11 @@ services:
     ports:
       - "5434:5432"
     volumes:
-      - ./.postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
 
   # Kafka (в режиме KRaft)
   kafka:
+    user: root
     image: bitnami/kafka:3.8
     container_name: kafka
     ports:
@@ -32,4 +33,43 @@ services:
       KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
       KAFKA_KRAFT_METADATA_LOG_DIR: "/bitnami/kafka/data"
     volumes:
-      - ./.kafka_data:/bitnami/kafka/data
+      - kafka_data:/bitnami/kafka/data
+
+  # Сервис пациентов
+  patient-service:
+    image: patient-service:latest
+    container_name: patient-service
+    build:
+      context: ./patientservice
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://patient_db:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      - postgres_db
+      - kafka
+
+  # Сервис FHIR API-интеграции
+  fhir-service:
+    image: fhir-service:latest
+    container_name: fhir-service
+    build:
+      context: ./fhirservice
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      FHIR_SERVER_URL: http://hapi.fhir.org/baseR4
+    depends_on:
+      - kafka
+
+volumes:
+  postgres_data:
+  kafka_data:
