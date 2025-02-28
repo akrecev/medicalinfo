@@ -6,5 +6,7 @@ import ru.kretsev.patientservice.dto.PatientResponseDTO;
 public interface PatientService {
     PatientResponseDTO create(PatientDTO patientDTO);
 
+    PatientResponseDTO update(Long id, PatientDTO patientDTO);
+
     PatientResponseDTO getById(Long id);
 }
