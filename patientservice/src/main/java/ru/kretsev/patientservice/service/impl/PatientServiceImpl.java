@@ -10,6 +10,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import ru.kretsev.patientservice.config.KafkaTopicProperties;
 import ru.kretsev.patientservice.dto.PatientDTO;
 import ru.kretsev.patientservice.dto.PatientResponseDTO;
 import ru.kretsev.patientservice.exception.DuplicateEmailException;
@@ -30,8 +31,7 @@ public class PatientServiceImpl implements PatientService {
     private final EntityService entityService;
     private final ObjectMapper objectMapper;
     private final PatientMapper patientMapper;
-    private static final String PATIENT_CREATED_TOPIC = "patient-created";
-    private static final String PATIENT_UPDATED_TOPIC = "patient-updated";
+    private final KafkaTopicProperties kafkaTopicProperties;
 
     @Override
     @Transactional(isolation = Isolation.SERIALIZABLE)
@@ -46,7 +46,7 @@ public class PatientServiceImpl implements PatientService {
             Patient savedPatient = patientRepository.save(patient);
             String patientJson = objectMapper.writeValueAsString(savedPatient);
 
-            kafkaService.sendMessage(PATIENT_CREATED_TOPIC, patientJson);
+            kafkaService.sendMessage(kafkaTopicProperties.getPatientCreated(), patientJson);
 
             return patientMapper.toResponseDTO(savedPatient);
         } catch (DataIntegrityViolationException e) {
@@ -79,7 +79,7 @@ public class PatientServiceImpl implements PatientService {
             Patient updatedPatient = patientRepository.save(patient);
             String patientJson = objectMapper.writeValueAsString(updatedPatient);
 
-            kafkaService.sendMessage(PATIENT_UPDATED_TOPIC, patientJson);
+            kafkaService.sendMessage(kafkaTopicProperties.getPatientUpdated(), patientJson);
 
             return patientMapper.toResponseDTO(updatedPatient);
         } catch (JsonProcessingException e) {
