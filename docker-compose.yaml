@@ -13,6 +13,11 @@ services:
       - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 10s
+      retries: 5
+      start_period: 10s
 
   # Kafka (в режиме KRaft)
   kafka:
@@ -24,16 +29,17 @@ services:
     environment:
       KAFKA_ENABLE_KRAFT: "yes"
       KAFKA_CFG_NODE_ID: 1
-      KAFKA_KRAFT_CLUSTER_ID: "my-cluster"
+      KAFKA_KRAFT_CLUSTER_ID: "Zz3vWfNzQSCsOTrtFZVWXA"  # Пример UUID
       KAFKA_CFG_PROCESS_ROLES: "controller,broker"
       KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
-      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
       KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
       KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
       KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
       KAFKA_KRAFT_METADATA_LOG_DIR: "/bitnami/kafka/data"
     volumes:
       - kafka_data:/bitnami/kafka/data
+    restart: unless-stopped
 
   # Сервис пациентов
   patient-service:
@@ -52,8 +58,10 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
-      - postgres_db
-      - kafka
+      postgres_db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
 
   # Сервис FHIR API-интеграции
   fhir-service:
@@ -68,7 +76,8 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       FHIR_SERVER_URL: http://hapi.fhir.org/baseR4
     depends_on:
-      - kafka
+      kafka:
+        condition: service_started
 
 volumes:
   postgres_data:
