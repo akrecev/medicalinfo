@@ -5,7 +5,6 @@ import static java.lang.String.format;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -19,9 +18,9 @@ import ru.kretsev.patientservice.model.Patient;
 import ru.kretsev.patientservice.repository.PatientRepository;
 import ru.kretsev.patientservice.service.EntityService;
 import ru.kretsev.patientservice.service.KafkaService;
+import ru.kretsev.patientservice.service.LoggingService;
 import ru.kretsev.patientservice.service.PatientService;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -29,6 +28,7 @@ public class PatientServiceImpl implements PatientService {
     private final PatientRepository patientRepository;
     private final KafkaService kafkaService;
     private final EntityService entityService;
+    private final LoggingService loggingService;
     private final ObjectMapper objectMapper;
     private final PatientMapper patientMapper;
     private final KafkaTopicProperties kafkaTopicProperties;
@@ -37,22 +37,19 @@ public class PatientServiceImpl implements PatientService {
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public PatientResponseDTO create(PatientDTO patientDTO) {
         try {
-            log.atInfo()
-                    .setMessage("Creating patient: {}")
-                    .addArgument(() -> patientDTO)
-                    .log();
-
             Patient patient = patientMapper.toEntity(patientDTO);
             Patient savedPatient = patientRepository.save(patient);
             String patientJson = objectMapper.writeValueAsString(savedPatient);
 
             kafkaService.sendMessage(kafkaTopicProperties.getPatientCreated(), patientJson);
 
+            loggingService.logInfo("Creating patient: {}", patientDTO);
             return patientMapper.toResponseDTO(savedPatient);
         } catch (DataIntegrityViolationException e) {
+            loggingService.logError("Error creating patient. Email already exists: {}", patientDTO.email());
             throw new DuplicateEmailException("Email already exists: " + patientDTO.email());
         } catch (JsonProcessingException e) {
-            log.error("Error mapping patients data to Json: {}", e.getMessage());
+            loggingService.logError("Error mapping patients data to Json: {}", e.getMessage());
             throw new IllegalArgumentException("Failed to mapping patients data to Json", e);
         }
     }
@@ -61,12 +58,6 @@ public class PatientServiceImpl implements PatientService {
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public PatientResponseDTO update(Long id, PatientDTO patientDTO) {
         try {
-            log.atInfo()
-                    .setMessage("Updating patient with id {}: {}")
-                    .addArgument(() -> id)
-                    .addArgument(() -> patientDTO)
-                    .log();
-
             Patient patient = takePatient(id);
 
             if (patientDTO.firstName() != null) {
@@ -81,19 +72,17 @@ public class PatientServiceImpl implements PatientService {
 
             kafkaService.sendMessage(kafkaTopicProperties.getPatientUpdated(), patientJson);
 
+            loggingService.logInfo("Updating patient with id {}: {}", id, patientDTO);
             return patientMapper.toResponseDTO(updatedPatient);
         } catch (JsonProcessingException e) {
-            log.error("Error mapping patients data to Json: {}", e.getMessage());
+            loggingService.logError("Error mapping patients data to Json: {}", e.getMessage());
             throw new IllegalArgumentException("Failed to mapping patients data to Json", e);
         }
     }
 
     @Override
     public PatientResponseDTO getById(Long id) {
-        log.atInfo()
-                .setMessage("Fetching patient by id: {}")
-                .addArgument(() -> id)
-                .log();
+        loggingService.logInfo("Getting patient by id: {}", id);
 
         Patient patient = takePatient(id);
 

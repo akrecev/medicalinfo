@@ -14,7 +14,7 @@ spring:
       mode: never
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
@@ -37,4 +37,4 @@ spring:
 logging:
   level:
     root: info
-    sql: trace
+    sql: info

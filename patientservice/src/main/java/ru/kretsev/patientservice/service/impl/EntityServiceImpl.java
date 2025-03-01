@@ -1,19 +1,22 @@
 package ru.kretsev.patientservice.service.impl;
 
-import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Service;
 import ru.kretsev.patientservice.exception.DataNotFoundException;
 import ru.kretsev.patientservice.service.EntityService;
+import ru.kretsev.patientservice.service.LoggingService;
 
-@Slf4j
 @Service
+@RequiredArgsConstructor
 public class EntityServiceImpl implements EntityService {
+    private final LoggingService loggingService;
+
     @Override
     @SuppressWarnings("java:S119")
     public <T, ID> T findEntityOrElseThrow(JpaRepository<T, ID> repository, ID id, String errorMessage) {
         return repository.findById(id).orElseThrow(() -> {
-            log.error("{}: id={}", errorMessage, id);
+            loggingService.logError("{}: id={}", errorMessage, id);
             return new DataNotFoundException(errorMessage);
         });
     }
