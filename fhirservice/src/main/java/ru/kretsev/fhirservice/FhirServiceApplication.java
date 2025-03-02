@@ -1,4 +1,4 @@
-package ru.kretsev;
+package ru.kretsev.fhirservice;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

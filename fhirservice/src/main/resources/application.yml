@@ -1,2 +1,15 @@
 server:
   port: 8081
+
+fhir:
+  server:
+    url: http://hapi.fhir.org/baseR4
+
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: fhir-service-group
+      topics:
+        patient-created: patient-created
+        patient-updated: patient-updated
