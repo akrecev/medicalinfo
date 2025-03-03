@@ -26,7 +26,8 @@ spring:
       enabled: false
       lifecycle-management: start_and_stop
   kafka:
-    bootstrap-servers: kafka:9092
+    bootstrap-servers: kafka:9092    # container
+#    bootstrap-servers: localhost:29092   # host
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
