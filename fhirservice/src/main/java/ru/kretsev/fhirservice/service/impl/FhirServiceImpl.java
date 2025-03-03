@@ -56,9 +56,6 @@ public class FhirServiceImpl implements FhirService {
         } catch (JsonProcessingException e) {
             loggingService.logError("Error parsing patient JSON: {}", e.getMessage());
             throw new PatientJsonProcessingException("Error parsing patient JSON", e);
-        } catch (Exception e) {
-            loggingService.logError("Error sending patient to FHIR server: {}", e.getMessage());
-            throw new RuntimeException("Error sending patient to FHIR server", e);
         }
     }
 
@@ -88,9 +85,6 @@ public class FhirServiceImpl implements FhirService {
         } catch (JsonProcessingException e) {
             loggingService.logError("Error parsing patient JSON: {}", e.getMessage());
             throw new PatientJsonProcessingException("Error parsing patient JSON", e);
-        } catch (Exception e) {
-            loggingService.logError("Error updating patient to FHIR server: {}", e.getMessage());
-            throw new RuntimeException("Error sending patient to FHIR server", e);
         }
     }
 }
