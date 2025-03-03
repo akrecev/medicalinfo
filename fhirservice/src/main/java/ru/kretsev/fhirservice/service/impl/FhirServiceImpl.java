@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import ru.kretsev.fhirservice.dto.PatientDTO;
+import ru.kretsev.fhirservice.exception.PatientJsonProcessingException;
 import ru.kretsev.fhirservice.service.FhirService;
 import ru.kretsev.fhirservice.service.LoggingService;
 
@@ -38,10 +39,8 @@ public class FhirServiceImpl implements FhirService {
     @Async("taskExecutor")
     public CompletableFuture<String> sendPatientToFhir(String patientJson) {
         try {
-            // Десериализация JSON в объект Patient
             PatientDTO patientDTO = objectMapper.readValue(patientJson, PatientDTO.class);
 
-            // Создание FHIR-пациента
             org.hl7.fhir.r4.model.Patient fhirPatient = new org.hl7.fhir.r4.model.Patient();
             fhirPatient.addName().setFamily(patientDTO.lastName()).addGiven(patientDTO.firstName());
             fhirPatient
@@ -49,16 +48,14 @@ public class FhirServiceImpl implements FhirService {
                     .setSystem(ContactPoint.ContactPointSystem.EMAIL)
                     .setValue(patientDTO.email());
 
-            // Отправка пациента на FHIR-сервер
             MethodOutcome outcome = fhirClient.create().resource(fhirPatient).execute();
             String fhirId = outcome.getId().getIdPart(); // Получаем FHIR ID
 
-            // Логирование успешного создания
             loggingService.logInfo("Patient successfully sent to FHIR server with ID: {}", fhirId);
-            return CompletableFuture.completedFuture(fhirId); // Возвращаем асинхронный результат
+            return CompletableFuture.completedFuture(fhirId);
         } catch (JsonProcessingException e) {
             loggingService.logError("Error parsing patient JSON: {}", e.getMessage());
-            throw new RuntimeException("Error parsing patient JSON", e);
+            throw new PatientJsonProcessingException("Error parsing patient JSON", e);
         } catch (Exception e) {
             loggingService.logError("Error sending patient to FHIR server: {}", e.getMessage());
             throw new RuntimeException("Error sending patient to FHIR server", e);
@@ -90,8 +87,10 @@ public class FhirServiceImpl implements FhirService {
 
         } catch (JsonProcessingException e) {
             loggingService.logError("Error parsing patient JSON: {}", e.getMessage());
+            throw new PatientJsonProcessingException("Error parsing patient JSON", e);
         } catch (Exception e) {
             loggingService.logError("Error updating patient to FHIR server: {}", e.getMessage());
+            throw new RuntimeException("Error sending patient to FHIR server", e);
         }
     }
 }
