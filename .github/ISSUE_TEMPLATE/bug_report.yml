@@ -1,0 +1,34 @@
+name: "🐞 Bug Report"
+description: "Сообщите об ошибке"
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: "Что произошло?"
+      description: "Опишите проблему и как ее воспроизвести."
+      placeholder: "Приложение падает при запуске..."
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: "Ожидаемое поведение"
+      description: "Как должно было работать?"
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: "Шаги для воспроизведения"
+      description: "Как воспроизвести ошибку?"
+  - type: textarea
+    id: logs
+    attributes:
+      label: "Логи или сообщения об ошибках"
+      description: "Прикрепите логи, если возможно."
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "Приоритет"
+      options:
+        - "🟥 High (Critical)"
+        - "🟧 Medium"
+        - "🟩 Low"
