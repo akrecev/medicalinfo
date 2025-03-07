@@ -1,0 +1,545 @@
+package ru.kretsev.patientservice.mapper;
+
+import javax.annotation.processing.Generated;
+import org.springframework.stereotype.Component;
+import ru.kretsev.patientservice.dto.PatientDTO;
+import ru.kretsev.patientservice.dto.PatientResponseDTO;
+import ru.kretsev.patientservice.model.Patient;
+
+@Generated(
+    value = "org.mapstruct.ap.MappingProcessor",
+    date = "2025-03-03T22:04:10+0300",
+    comments = "version: 1.5.5.Final, compiler: IncrementalProcessingEnvironment from gradle-language-java-8.12.jar, environment: Java 21.0.4 (Oracle Corporation)"
+)
+@Component
+public class PatientMapperImpl implements PatientMapper {
+
+    @Override
+    public Patient toEntity(PatientDTO patientDTO) {
+        if ( patientDTO == null ) {
+            return null;
+        }
+
+        Patient.PatientBuilder patient = Patient.builder();
+
+        patient.firstName( patientDTO.firstName() );
+        patient.lastName( patientDTO.lastName() );
+        patient.email( patientDTO.email() );
+
+        return patient.build();
+    }
+
+    @Override
+    public PatientResponseDTO toResponseDTO(Patient patient) {
+        if ( patient == null ) {
+            return null;
+        }
+
+        Long id = null;
+        String firstName = null;
+        String lastName = null;
+        String email = null;
+
+        id = patient.getId();
+        firstName = patient.getFirstName();
+        lastName = patient.getLastName();
+        email = patient.getEmail();
+
+        PatientResponseDTO patientResponseDTO = new PatientResponseDTO( id, firstName, lastName, email );
+
+        return patientResponseDTO;
+    }
+}
+package ru.kretsev.patientservice.config;
+
+import java.util.concurrent.Executor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+@Configuration
+@EnableAsync
+public class AsyncConfig {
+    @Bean(name = "taskExecutor")
+    public Executor taskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(10);
+        executor.setMaxPoolSize(50);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("AsyncThread-");
+        executor.initialize();
+        return executor;
+    }
+}
+package ru.kretsev.patientservice.config;
+
+import lombok.RequiredArgsConstructor;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.config.TopicBuilder;
+
+@Configuration
+@RequiredArgsConstructor
+public class KafkaConfig {
+    private final KafkaTopicProperties kafkaTopicProperties;
+
+    @Bean
+    public NewTopic patientCreatedTopic() {
+        return TopicBuilder.name(kafkaTopicProperties.getPatientCreated())
+                .partitions(1)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    public NewTopic patientUpdatedTopic() {
+        return TopicBuilder.name(kafkaTopicProperties.getPatientUpdated())
+                .partitions(1)
+                .replicas(1)
+                .build();
+    }
+}
+package ru.kretsev.patientservice.config;
+
+import lombok.Getter;
+import lombok.Setter;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@ConfigurationProperties(prefix = "spring.kafka.topics")
+@Getter
+@Setter
+public class KafkaTopicProperties {
+    private String patientCreated;
+    private String patientUpdated;
+}
+package ru.kretsev.patientservice.config;
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class SwaggerConfig {
+
+    @Bean
+    public OpenAPI customOpenAPI() {
+        return new OpenAPI()
+                .info(new Info().title("Patient Service API").version("1.0").description("API for managing patients"));
+    }
+}
+package ru.kretsev.patientservice.controller;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
+import ru.kretsev.patientservice.OnCreate;
+import ru.kretsev.patientservice.OnUpdate;
+import ru.kretsev.patientservice.dto.PatientDTO;
+import ru.kretsev.patientservice.dto.PatientResponseDTO;
+import ru.kretsev.patientservice.service.PatientService;
+
+@RestController
+@RequestMapping("/api/v1/patients")
+@RequiredArgsConstructor
+@Validated
+public class PatientController {
+    private final PatientService patientService;
+
+    @Operation(
+            summary = "Create a new patient",
+            description = "Creates a new patient record and returns the created patient details")
+    @ApiResponses(
+            value = {
+                @ApiResponse(responseCode = "201", description = "Patient created successfully"),
+                @ApiResponse(responseCode = "400", description = "Invalid input data")
+            })
+    @PostMapping
+    public ResponseEntity<PatientResponseDTO> createPatient(
+            @Validated(OnCreate.class) @RequestBody PatientDTO patientDTO) {
+        return new ResponseEntity<>(patientService.create(patientDTO), HttpStatus.CREATED);
+    }
+
+    @Operation(summary = "Get patient details", description = "Retrieves details of a patient by ID")
+    @ApiResponses(
+            value = {
+                @ApiResponse(responseCode = "200", description = "Patient found"),
+                @ApiResponse(responseCode = "404", description = "Patient not found")
+            })
+    @GetMapping("/{id}")
+    public ResponseEntity<PatientResponseDTO> getPatient(@PathVariable Long id) {
+        return ResponseEntity.ok(patientService.getById(id));
+    }
+
+    @Operation(
+            summary = "Update a patient",
+            description = "Updates a patient record and returns the updated patient details")
+    @ApiResponses(
+            value = {
+                @ApiResponse(responseCode = "201", description = "Patient created successfully"),
+                @ApiResponse(responseCode = "400", description = "Invalid input data")
+            })
+    @PutMapping("/{id}")
+    public ResponseEntity<PatientResponseDTO> updatePatient(
+            @PathVariable Long id, @Validated(OnUpdate.class) @RequestBody PatientDTO patientDTO) {
+        return ResponseEntity.ok(patientService.update(id, patientDTO));
+    }
+}
+package ru.kretsev.patientservice.dto;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Null;
+import ru.kretsev.patientservice.OnCreate;
+import ru.kretsev.patientservice.OnUpdate;
+
+public record PatientDTO(
+        @NotBlank(groups = OnCreate.class, message = "First name is required") String firstName,
+        @NotBlank(groups = OnCreate.class, message = "Last name is required") String lastName,
+        @NotBlank(groups = OnCreate.class, message = "Email is required")
+                @Null(groups = OnUpdate.class, message = "Email cannot be updated")
+                @Email(groups = OnCreate.class, message = "Invalid email format")
+                String email) {}
+package ru.kretsev.patientservice.dto;
+
+public record PatientResponseDTO(Long id, String firstName, String lastName, String email) {}
+package ru.kretsev.patientservice.exception;
+
+import lombok.experimental.StandardException;
+
+@StandardException
+@SuppressWarnings("this-escape")
+public class DataNotFoundException extends RuntimeException {}
+package ru.kretsev.patientservice.exception;
+
+import lombok.experimental.StandardException;
+
+@StandardException
+@SuppressWarnings("this-escape")
+public class DuplicateEmailException extends RuntimeException {}
+package ru.kretsev.patientservice.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+
+@ControllerAdvice
+public class GlobalExceptionHandler {
+    @ExceptionHandler(DuplicateEmailException.class)
+    public ResponseEntity<String> handleDuplicateEmailException(DuplicateEmailException e) {
+        return new ResponseEntity<>(e.getMessage(), HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(DataNotFoundException.class)
+    public ResponseEntity<String> handleDataNotFoundException(DataNotFoundException e) {
+        return new ResponseEntity<>(e.getMessage(), HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<String> handleRuntimeException(RuntimeException e) {
+        return new ResponseEntity<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
+package ru.kretsev.patientservice.mapper;
+
+import org.mapstruct.Mapper;
+import org.mapstruct.ReportingPolicy;
+import ru.kretsev.patientservice.dto.PatientDTO;
+import ru.kretsev.patientservice.dto.PatientResponseDTO;
+import ru.kretsev.patientservice.model.Patient;
+
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
+public interface PatientMapper {
+    Patient toEntity(PatientDTO patientDTO);
+
+    PatientResponseDTO toResponseDTO(Patient patient);
+}
+package ru.kretsev.patientservice.model;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder(toBuilder = true)
+@Entity
+public class Patient {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String firstName;
+
+    @Column(nullable = false)
+    private String lastName;
+
+    @Column(nullable = false, unique = true)
+    private String email;
+}
+package ru.kretsev.patientservice;
+
+public interface OnCreate {}
+package ru.kretsev.patientservice;
+
+public interface OnUpdate {}
+package ru.kretsev.patientservice;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableAsync;
+
+@EnableAsync
+@SpringBootApplication
+public class PatientServiceApp {
+    public static void main(String[] args) {
+        SpringApplication.run(PatientServiceApp.class, args);
+    }
+}
+package ru.kretsev.patientservice.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import ru.kretsev.patientservice.model.Patient;
+
+@Repository
+public interface PatientRepository extends JpaRepository<Patient, Long> {}
+package ru.kretsev.patientservice.service;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface EntityService {
+    @SuppressWarnings("java:S119")
+    <T, ID> T findEntityOrElseThrow(JpaRepository<T, ID> repository, ID id, String errorMessage);
+}
+package ru.kretsev.patientservice.service.impl;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Service;
+import ru.kretsev.patientservice.exception.DataNotFoundException;
+import ru.kretsev.patientservice.service.EntityService;
+import ru.kretsev.patientservice.service.LoggingService;
+
+@Service
+@RequiredArgsConstructor
+public class EntityServiceImpl implements EntityService {
+    private final LoggingService loggingService;
+
+    @Override
+    @SuppressWarnings("java:S119")
+    public <T, ID> T findEntityOrElseThrow(JpaRepository<T, ID> repository, ID id, String errorMessage) {
+        return repository.findById(id).orElseThrow(() -> {
+            loggingService.logError("{}: id={}", errorMessage, id);
+            return new DataNotFoundException(errorMessage);
+        });
+    }
+}
+package ru.kretsev.patientservice.service.impl;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+import ru.kretsev.patientservice.service.KafkaService;
+
+@Service
+@RequiredArgsConstructor
+public class KafkaServiceImpl implements KafkaService {
+    private final KafkaTemplate<String, String> kafkaTemplate;
+
+    @Override
+    @Async("taskExecutor")
+    public void sendMessage(String topic, String message) {
+        kafkaTemplate.send(topic, message);
+    }
+}
+package ru.kretsev.patientservice.service.impl;
+
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.event.Level;
+import org.slf4j.spi.LoggingEventBuilder;
+import org.springframework.stereotype.Service;
+import ru.kretsev.patientservice.service.LoggingService;
+
+@Slf4j
+@Service
+public class LoggingServiceImpl implements LoggingService {
+    @Override
+    public void logDebug(String message, Object... args) {
+        logMessage(Level.DEBUG, message, args);
+    }
+
+    @Override
+    public void logInfo(String message, Object... args) {
+        logMessage(Level.INFO, message, args);
+    }
+
+    @Override
+    public void logWarn(String message, Object... args) {
+        logMessage(Level.WARN, message, args);
+    }
+
+    @Override
+    public void logError(String message, Object... args) {
+        logMessage(Level.ERROR, message, args);
+    }
+
+    private void logMessage(Level level, String message, Object... args) {
+        LoggingEventBuilder logBuilder;
+
+        switch (level) {
+            case DEBUG -> logBuilder = log.atDebug();
+            case ERROR -> logBuilder = log.atError();
+            case WARN -> logBuilder = log.atWarn();
+            case INFO -> logBuilder = log.atInfo();
+            default -> throw new IllegalArgumentException("Unsupported log level: " + level);
+        }
+
+        logBuilder = logBuilder.setMessage(message);
+
+        for (Object arg : args) {
+            logBuilder = logBuilder.addArgument(() -> arg);
+        }
+
+        logBuilder.log();
+    }
+}
+package ru.kretsev.patientservice.service.impl;
+
+import static java.lang.String.format;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
+import ru.kretsev.patientservice.config.KafkaTopicProperties;
+import ru.kretsev.patientservice.dto.PatientDTO;
+import ru.kretsev.patientservice.dto.PatientResponseDTO;
+import ru.kretsev.patientservice.exception.DuplicateEmailException;
+import ru.kretsev.patientservice.mapper.PatientMapper;
+import ru.kretsev.patientservice.model.Patient;
+import ru.kretsev.patientservice.repository.PatientRepository;
+import ru.kretsev.patientservice.service.EntityService;
+import ru.kretsev.patientservice.service.KafkaService;
+import ru.kretsev.patientservice.service.LoggingService;
+import ru.kretsev.patientservice.service.PatientService;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class PatientServiceImpl implements PatientService {
+    private final PatientRepository patientRepository;
+    private final KafkaService kafkaService;
+    private final EntityService entityService;
+    private final LoggingService loggingService;
+    private final ObjectMapper objectMapper;
+    private final PatientMapper patientMapper;
+    private final KafkaTopicProperties kafkaTopicProperties;
+
+    @Override
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    public PatientResponseDTO create(PatientDTO patientDTO) {
+        try {
+            Patient patient = patientMapper.toEntity(patientDTO);
+            Patient savedPatient = patientRepository.save(patient);
+            String patientJson = objectMapper.writeValueAsString(savedPatient);
+
+            kafkaService.sendMessage(kafkaTopicProperties.getPatientCreated(), patientJson);
+
+            loggingService.logInfo("Creating patient: {}", patientDTO);
+            return patientMapper.toResponseDTO(savedPatient);
+        } catch (DataIntegrityViolationException e) {
+            loggingService.logError("Error creating patient. Email already exists: {}", patientDTO.email());
+            throw new DuplicateEmailException("Email already exists: " + patientDTO.email());
+        } catch (JsonProcessingException e) {
+            loggingService.logError("Error mapping patients data to Json: {}", e.getMessage());
+            throw new IllegalArgumentException("Failed to mapping patients data to Json", e);
+        }
+    }
+
+    @Override
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    public PatientResponseDTO update(Long id, PatientDTO patientDTO) {
+        try {
+            Patient patient = takePatient(id);
+
+            if (patientDTO.firstName() != null) {
+                patient.setFirstName(patientDTO.firstName());
+            }
+            if (patientDTO.lastName() != null) {
+                patient.setLastName(patientDTO.lastName());
+            }
+
+            Patient updatedPatient = patientRepository.save(patient);
+            String patientJson = objectMapper.writeValueAsString(updatedPatient);
+
+            kafkaService.sendMessage(kafkaTopicProperties.getPatientUpdated(), patientJson);
+
+            loggingService.logInfo("Updating patient with id {}: {}", id, patientDTO);
+            return patientMapper.toResponseDTO(updatedPatient);
+        } catch (JsonProcessingException e) {
+            loggingService.logError("Error mapping patients data to Json: {}", e.getMessage());
+            throw new IllegalArgumentException("Failed to mapping patients data to Json", e);
+        }
+    }
+
+    @Override
+    public PatientResponseDTO getById(Long id) {
+        loggingService.logInfo("Getting patient by id: {}", id);
+
+        Patient patient = takePatient(id);
+
+        return patientMapper.toResponseDTO(patient);
+    }
+
+    private Patient takePatient(Long id) {
+        return entityService.findEntityOrElseThrow(patientRepository, id, format("Patient with id:%d not found", id));
+    }
+}
+package ru.kretsev.patientservice.service;
+
+public interface KafkaService {
+    void sendMessage(String topic, String message);
+}
+package ru.kretsev.patientservice.service;
+
+public interface LoggingService {
+    void logDebug(String message, Object... args);
+
+    void logInfo(String message, Object... args);
+
+    void logWarn(String message, Object... args);
+
+    void logError(String message, Object... args);
+}
+package ru.kretsev.patientservice.service;
+
+import ru.kretsev.patientservice.dto.PatientDTO;
+import ru.kretsev.patientservice.dto.PatientResponseDTO;
+
+public interface PatientService {
+    PatientResponseDTO create(PatientDTO patientDTO);
+
+    PatientResponseDTO update(Long id, PatientDTO patientDTO);
+
+    PatientResponseDTO getById(Long id);
+}

@@ -1,0 +1,358 @@
+package ru.kretsev.fhirservice.config;
+
+import java.util.concurrent.Executor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+@EnableAsync
+@Configuration
+public class AsyncConfig {
+    @Bean(name = "taskExecutor")
+    public Executor taskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(10);
+        executor.setMaxPoolSize(50);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("AsyncThread-");
+        executor.initialize();
+
+        return executor;
+    }
+}
+package ru.kretsev.fhirservice.config;
+
+import ca.uhn.fhir.context.FhirContext;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class FhirConfig {
+    @Bean
+    public FhirContext fhirContext() {
+        return FhirContext.forR4();
+    }
+}
+package ru.kretsev.fhirservice.config;
+
+import org.apache.kafka.clients.admin.NewTopic;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.config.TopicBuilder;
+
+@Configuration
+public class KafkaConfig {
+    @Bean
+    public NewTopic patientCreatedTopic() {
+        return TopicBuilder.name("patient-created").partitions(1).replicas(1).build();
+    }
+
+    @Bean
+    public NewTopic patientUpdatedTopic() {
+        return TopicBuilder.name("patient-updated").partitions(1).replicas(1).build();
+    }
+}
+package ru.kretsev.fhirservice.config;
+
+import lombok.Getter;
+import lombok.Setter;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@ConfigurationProperties(prefix = "spring.kafka.consumer")
+@Getter
+@Setter
+public class KafkaTopicProperties {
+    private Topics topics = new Topics();
+    private String groupId;
+
+    @Getter
+    @Setter
+    static class Topics {
+        private String patientCreated;
+        private String patientUpdated;
+    }
+}
+package ru.kretsev.fhirservice.config;
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class SwaggerConfig {
+    public OpenAPI customOpenAPI() {
+        return new OpenAPI()
+                .info(new Info()
+                        .title("FHIR integration Service API")
+                        .version("1.0")
+                        .description("API for FHIR integration"));
+    }
+}
+package ru.kretsev.fhirservice.consumer;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Service;
+import ru.kretsev.fhirservice.config.KafkaTopicProperties;
+import ru.kretsev.fhirservice.service.FhirService;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class PatientCreatedConsumer {
+    private final FhirService fhirService;
+    private final KafkaTopicProperties kafkaTopicProperties;
+
+    @KafkaListener(
+            topics = "#{kafkaTopicProperties.topics.patientCreated}",
+            groupId = "#{kafkaTopicProperties.groupId}")
+    public void listen(String message) {
+        log.info("Received message: {}", message);
+        fhirService.sendPatientToFhir(message);
+    }
+}
+package ru.kretsev.fhirservice.consumer;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Service;
+import ru.kretsev.fhirservice.config.KafkaTopicProperties;
+import ru.kretsev.fhirservice.service.FhirService;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class PatientUpdatedConsumer {
+    private final FhirService fhirService;
+    private final KafkaTopicProperties kafkaTopicProperties;
+
+    @KafkaListener(
+            topics = "#{kafkaTopicProperties.topics.patientUpdated}",
+            groupId = "#{kafkaTopicProperties.groupId}")
+    public void listen(String message) {
+        log.info("Received message: {}", message);
+        fhirService.updatePatientInFhir(message);
+    }
+}
+package ru.kretsev.fhirservice.dto;
+
+public record PatientDTO(Long id, String firstName, String lastName, String email) {}
+package ru.kretsev.fhirservice.exception;
+
+import java.util.HashMap;
+import java.util.Map;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import ru.kretsev.fhirservice.service.LoggingService;
+
+@ControllerAdvice
+@RequiredArgsConstructor
+public class GlobalExceptionHandler {
+
+    private final LoggingService loggingService;
+
+    @ExceptionHandler(PatientJsonProcessingException.class)
+    public ResponseEntity<Map<String, String>> handlePatientJsonProcessingException(PatientJsonProcessingException e) {
+        loggingService.logError("Patient json processing error: {}", e);
+
+        Map<String, String> response = new HashMap<>();
+        response.put("error", "Invalid patient JSON format");
+        response.put("message", e.getMessage());
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<String> handleRuntimeException(RuntimeException e) {
+        return new ResponseEntity<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
+package ru.kretsev.fhirservice.exception;
+
+import lombok.experimental.StandardException;
+
+@SuppressWarnings("this-escape")
+@StandardException
+public class PatientJsonProcessingException extends RuntimeException {}
+package ru.kretsev.fhirservice;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableAsync;
+
+@EnableAsync
+@SpringBootApplication
+public class FhirServiceApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(FhirServiceApplication.class, args);
+    }
+}
+package ru.kretsev.fhirservice.service;
+
+import java.util.concurrent.CompletableFuture;
+
+public interface FhirService {
+    CompletableFuture<String> sendPatientToFhir(String message);
+
+    void updatePatientInFhir(String patientData);
+}
+package ru.kretsev.fhirservice.service.impl;
+
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.rest.api.MethodOutcome;
+import ca.uhn.fhir.rest.client.api.IGenericClient;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import org.hl7.fhir.r4.model.ContactPoint;
+import org.hl7.fhir.r4.model.StringType;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+import ru.kretsev.fhirservice.dto.PatientDTO;
+import ru.kretsev.fhirservice.exception.PatientJsonProcessingException;
+import ru.kretsev.fhirservice.service.FhirService;
+import ru.kretsev.fhirservice.service.LoggingService;
+
+@Service
+public class FhirServiceImpl implements FhirService {
+    private final IGenericClient fhirClient;
+    private final ObjectMapper objectMapper;
+    private final LoggingService loggingService;
+
+    @Autowired
+    public FhirServiceImpl(
+            FhirContext fhirContext,
+            ObjectMapper objectMapper,
+            LoggingService loggingService,
+            @Value("${fhir.server.url}") String fhirServerUrl) {
+        this.fhirClient = fhirContext.newRestfulGenericClient(fhirServerUrl);
+        this.objectMapper = objectMapper;
+        this.loggingService = loggingService;
+    }
+
+    @Override
+    @Async("taskExecutor")
+    public CompletableFuture<String> sendPatientToFhir(String patientJson) {
+        try {
+            PatientDTO patientDTO = objectMapper.readValue(patientJson, PatientDTO.class);
+
+            org.hl7.fhir.r4.model.Patient fhirPatient = new org.hl7.fhir.r4.model.Patient();
+            fhirPatient.addName().setFamily(patientDTO.lastName()).addGiven(patientDTO.firstName());
+            fhirPatient
+                    .addTelecom()
+                    .setSystem(ContactPoint.ContactPointSystem.EMAIL)
+                    .setValue(patientDTO.email());
+
+            MethodOutcome outcome = fhirClient.create().resource(fhirPatient).execute();
+            String fhirId = outcome.getId().getIdPart(); // Получаем FHIR ID
+
+            loggingService.logInfo("Patient successfully sent to FHIR server with ID: {}", fhirId);
+            return CompletableFuture.completedFuture(fhirId);
+        } catch (JsonProcessingException e) {
+            loggingService.logError("Error parsing patient JSON: {}", e.getMessage());
+            throw new PatientJsonProcessingException("Error parsing patient JSON", e);
+        }
+    }
+
+    @Override
+    @Async("taskExecutor")
+    public void updatePatientInFhir(String patientData) {
+        try {
+            loggingService.logInfo("update patient data to FHIR server: {}", patientData);
+
+            PatientDTO patientDTO = objectMapper.readValue(patientData, PatientDTO.class);
+            org.hl7.fhir.r4.model.Patient fhirPatient = fhirClient
+                    .read()
+                    .resource(org.hl7.fhir.r4.model.Patient.class)
+                    .withId(patientDTO.id())
+                    .execute();
+            fhirPatient.addName().setFamily(patientDTO.lastName()).addGiven(patientDTO.firstName());
+            fhirPatient.getNameFirstRep().setFamily(patientDTO.lastName());
+            fhirPatient.getNameFirstRep().setGiven(List.of(new StringType(patientDTO.firstName())));
+            fhirPatient.getTelecomFirstRep().setValue(patientDTO.email());
+
+            MethodOutcome outcome = fhirClient.update().resource(fhirPatient).execute();
+
+            loggingService.logInfo(
+                    "Patient successfully updated in FHIR server with ID: {}",
+                    outcome.getId().getIdPart());
+
+        } catch (JsonProcessingException e) {
+            loggingService.logError("Error parsing patient JSON: {}", e.getMessage());
+            throw new PatientJsonProcessingException("Error parsing patient JSON", e);
+        }
+    }
+}
+package ru.kretsev.fhirservice.service.impl;
+
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.event.Level;
+import org.slf4j.spi.LoggingEventBuilder;
+import org.springframework.stereotype.Service;
+import ru.kretsev.fhirservice.service.LoggingService;
+
+@Slf4j
+@Service
+public class LoggingServiceImpl implements LoggingService {
+    @Override
+    public void logDebug(String message, Object... args) {
+        logMessage(Level.DEBUG, message, args);
+    }
+
+    @Override
+    public void logInfo(String message, Object... args) {
+        logMessage(Level.INFO, message, args);
+    }
+
+    @Override
+    public void logWarn(String message, Object... args) {
+        logMessage(Level.WARN, message, args);
+    }
+
+    @Override
+    public void logError(String message, Object... args) {
+        logMessage(Level.ERROR, message, args);
+    }
+
+    private void logMessage(Level level, String message, Object... args) {
+        LoggingEventBuilder logBuilder;
+
+        switch (level) {
+            case DEBUG -> logBuilder = log.atDebug();
+            case ERROR -> logBuilder = log.atError();
+            case WARN -> logBuilder = log.atWarn();
+            case INFO -> logBuilder = log.atInfo();
+            default -> throw new IllegalArgumentException("Unsupported log level: " + level);
+        }
+
+        logBuilder = logBuilder.setMessage(message);
+
+        for (Object arg : args) {
+            logBuilder = logBuilder.addArgument(() -> arg);
+        }
+
+        logBuilder.log();
+    }
+}
+package ru.kretsev.fhirservice.service;
+
+public interface LoggingService {
+    void logDebug(String message, Object... args);
+
+    void logInfo(String message, Object... args);
+
+    void logWarn(String message, Object... args);
+
+    void logError(String message, Object... args);
+}

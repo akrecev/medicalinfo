@@ -1,0 +1,26 @@
+name: "\U0001F680 Feature Request"
+description: "Предложите новую функцию или улучшение"
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: "Спасибо за ваш вклад! Опишите, что вы хотите предложить."
+  - type: textarea
+    id: description
+    attributes:
+      label: "Описание"
+      description: "Опишите, какую функциональность вы предлагаете и зачем она нужна."
+      placeholder: "Например: Добавить поддержку OAuth2 для входа пользователей."
+  - type: textarea
+    id: implementation
+    attributes:
+      label: "Предлагаемая реализация"
+      description: "Опишите, как можно реализовать данную фичу (если у вас есть идеи)."
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: "Чек-лист"
+      options:
+        - label: "Я проверил, что такой запрос уже не был создан"
+          required: true
