@@ -1,14 +1,16 @@
 package ru.kretsev.patientservice.model;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import lombok.experimental.Accessors;
 
-@Data
+import static lombok.AccessLevel.PRIVATE;
+
 @NoArgsConstructor
-@AllArgsConstructor
+@AllArgsConstructor(access = PRIVATE)
+@Accessors(chain = true)
+@Getter
+@Setter
 @Builder(toBuilder = true)
 @Entity
 public class Patient {
@@ -25,4 +27,7 @@ public class Patient {
 
     @Column(nullable = false, unique = true)
     private String email;
+
+    @Column
+    private String fhirId;
 }
